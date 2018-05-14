@@ -1,0 +1,16 @@
+[package]
+name = "reddit_wallpapers"
+version = "0.1.0"
+authors = ["Daniel Schmitz <schmytzi@gmail.com>"]
+
+[dependencies]
+reqwest = "0.8.5"
+serde_json = "1.0"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[lib]
+name = "reddit_wallpapers"
+path = "src/libs.rs"
