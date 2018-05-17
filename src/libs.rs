@@ -3,7 +3,6 @@ extern crate serde_json;
 
 pub mod reddit {
     use reqwest;
-    use serde_json;
     use serde_json::{Map, Value};
     use std::error::Error;
 
