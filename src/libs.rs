@@ -2,15 +2,15 @@ extern crate reqwest;
 extern crate serde_json;
 
 pub mod reddit {
-    use reqwest;
     use serde_json::{Map, Value};
     use std::error::Error;
+    use reqwest::Client;
 
-    fn get_subreddit(subreddit: &str) -> Result<Value, String> {
+    fn get_subreddit(subreddit: &str, client: &Client) -> Result<Value, String> {
         let mut url = String::from("https://reddit.com/r/");
         url.push_str(subreddit);
         url.push_str(".json");
-        let mut response = match reqwest::get(&url) {
+        let mut response = match client.get(&url).send() {
             Ok(mut r) => r,
             Err(e) => return Err(e.description().to_owned()),
         };
@@ -29,8 +29,8 @@ pub mod reddit {
         pub author: String,
     }
 
-    pub fn get_subreddit_links(subreddit: &str) -> Result<Vec<Link>, String> {
-        let body = match get_subreddit(subreddit) {
+    pub fn get_subreddit_links(subreddit: &str, client: &Client) -> Result<Vec<Link>, String> {
+        let body = match get_subreddit(subreddit, client) {
             Ok(b) => b,
             Err(e) => return Err(e),
         };

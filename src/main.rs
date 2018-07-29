@@ -9,13 +9,14 @@ use argparse::{ArgumentParser, Store};
 use imagefmt::{ColFmt, ColType};
 use reddit_wallpapers::reddit;
 use regex::Regex;
+use reqwest::{Client, Proxy};
 use std::ffi::OsStr;
+use std::io::SeekFrom::{Current, End, Start};
+use std::io::{Read, Seek, SeekFrom};
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use user32::SystemParametersInfoW;
-use std::io::{Read, Seek, SeekFrom};
-use std::io::SeekFrom::{Start, End,Current};
 
 const SPI_SET_DESK_WALLPAPER: u32 = 20;
 const SPIF_UPDATE_INI_FILE: u32 = 1;
@@ -24,7 +25,7 @@ const SPIF_SEND_WIN_INI_CHANGE: u32 = 2;
 // Simple adapter to use a Vec as a read-only buffer. Not ready for use outside of the tool.
 struct VecBuffer {
     pos: usize,
-    inner : Vec<u8>,
+    inner: Vec<u8>,
 }
 
 impl Read for VecBuffer {
@@ -48,17 +49,17 @@ impl Seek for VecBuffer {
         self.pos = match pos {
             Start(n) => n as usize,
             End(n) => {
-                if -n > (self.inner.len() as i64){
+                if -n > (self.inner.len() as i64) {
                     return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
                 } else {
                     ((self.inner.len() as i64) + n) as usize
                 }
-            },
+            }
             Current(n) => {
                 if -n > (self.pos as i64) {
                     return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
                 } else {
-                    ((self.pos as i64) + n)as usize
+                    ((self.pos as i64) + n) as usize
                 }
             }
         };
@@ -70,6 +71,7 @@ fn main() {
     let mut min_width = 1920;
     let mut min_height = 1080;
     let mut subreddit = String::from("earthporn");
+    let mut proxy = String::from("");
     // Open block s.t. the argument parser's references do not live too long
     {
         let mut ap = ArgumentParser::new();
@@ -91,9 +93,18 @@ fn main() {
             Store,
             "The subreddit to get (works with combined subreddits, as well). Default: earthporn",
         );
+        ap.refer(&mut proxy)
+            .add_option(&["-p", "--proxy"], Store, "Proxy to use for connection");
         ap.parse_args_or_exit();
     }
-    let subreddit = match reddit::get_subreddit_links(&subreddit) {
+    let client = if proxy.is_empty(){
+        Client::new()
+    } else {
+        Client::builder()
+        .proxy(Proxy::http(&proxy).expect("Proxy url is wrong"))
+        .build().expect("Could not reach proxy")
+    };
+    let subreddit = match reddit::get_subreddit_links(&subreddit, &client) {
         Ok(s) => s,
         Err(message) => panic!("{}", &message),
     };
@@ -127,7 +138,9 @@ fn main() {
                 pos: 0,
                 inner: Vec::new(),
             };
-            response.copy_to(&mut buffer.inner).expect("Could not write JPG to buffer");
+            response
+                .copy_to(&mut buffer.inner)
+                .expect("Could not write JPG to buffer");
             // Convert JPG to BMP
             let jpg = imagefmt::read_from(&mut buffer, ColFmt::Auto).unwrap();
             imagefmt::write("image.bmp", jpg.w, jpg.h, jpg.fmt, &jpg.buf, ColType::Color)
